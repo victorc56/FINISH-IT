@@ -2,9 +2,9 @@
 
 CHRIS ERFORT WAS HERE
 yes he was
-
+MYLES FERNAU WAS HERE WOOOOHOOOO
   Blink
-
+W
   Turns an LED on for one second, then off for one second, repeatedly.
 
   Most Arduinos have an on-board LED you can control. On the UNO, MEGA and ZERO
