@@ -1,33 +1,38 @@
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
+from keras.models import Sequential
+from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
 import numpy as np
 import cv2  # For image capture and preprocessing
+
+
+train_dataset = tf.keras.preprocessing.image_dataset_from_directory(
+    'training_data_pi/',
+    validation_split=0.2,
+    subset="training",
+    seed=123,
+    image_size=(224, 224),
+    batch_size=32)
+
+validation_dataset = tf.keras.preprocessing.image_dataset_from_directory(
+    'training_data_pi/',
+    validation_split=0.2,
+    subset="validation",
+    seed=123,
+    image_size=(224, 224),
+    batch_size=32)
+
+AUTOTUNE = tf.data.experimental.AUTOTUNE
+
+train_dataset = train_dataset.cache().shuffle(1000).prefetch(buffer_size=AUTOTUNE)
+validation_dataset = validation_dataset.cache().prefetch(buffer_size=AUTOTUNE)
+
+classes = ['griddy', 'naenae', 'whip']
 
 interpreter = tf.lite.Interpreter(model_path="squeezenet_model.tflite")
 interpreter.allocate_tensors()
 
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
-
-def preprocess_frame(frame):
-    # Resize frame to match the model input
-    frame_resized = cv2.resize(frame, (224, 224))
-    # Convert frame to float32 and scale pixel values to [0, 1]
-    frame_normalized = frame_resized.astype('float32') / 255.0
-    # Add batch dimension
-    input_data = np.expand_dims(frame_normalized, axis=0)
-    return input_data
-
-def infer(processed_frame):
-    # Set the input tensor
-    interpreter.set_tensor(input_details[0]['index'], processed_frame)
-    # Run inference
-    interpreter.invoke()
-    # Get the output tensor
-    output_data = interpreter.get_tensor(output_details[0]['index'])
-    # Process and return the output
-    return output_data
 
 
 # Example model (modify according to your needs)
@@ -44,6 +49,15 @@ model = Sequential([
 model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
 # Train the model (X_train, y_train should be your preprocessed dataset and labels)
-model.fit(X_train, y_train, epochs=10, validation_split=0.2)
+model.fit(train_dataset, validation_data=validation_dataset, epochs=10)
 
 # After training, evaluate your model and then convert it to TensorFlow Lite format for deployment
+model.save('my_model.h5')  # Save your model
+
+# Convert the model to TensorFlow Lite
+converter = tf.lite.TFLiteConverter.from_keras_model(model)
+tflite_model = converter.convert()
+
+# Save the TFLite model
+with open('model.tflite', 'wb') as f:
+    f.write(tflite_model)

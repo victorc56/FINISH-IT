@@ -10,6 +10,25 @@ interpreter.allocate_tensors()
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
 
+def preprocess_frame(frame):
+    # Resize frame to match the model input
+    frame_resized = cv2.resize(frame, (224, 224))
+    # Convert frame to float32 and scale pixel values to [0, 1]
+    frame_normalized = frame_resized.astype('float32') / 255.0
+    # Add batch dimension
+    input_data = np.expand_dims(frame_normalized, axis=0)
+    return input_data
+
+def infer(processed_frame):
+    # Set the input tensor
+    interpreter.set_tensor(input_details[0]['index'], processed_frame)
+    # Run inference
+    interpreter.invoke()
+    # Get the output tensor
+    output_data = interpreter.get_tensor(output_details[0]['index'])
+    # Process and return the output
+    return output_data
+
 def capture_frame():
     # Capture a frame from the camera
     # (You'll need to set up your camera with OpenCV or similar library)
