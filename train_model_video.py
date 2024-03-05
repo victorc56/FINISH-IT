@@ -36,14 +36,11 @@ class VideoFrameGenerator(tf.keras.utils.Sequence):
     def _load_samples(self):
         samples = []
         for label in self.classes:
-            #adds label to directory 
             class_dir = os.path.join(self.directory, label)
-            #for each video in directory
             for video_name in os.listdir(class_dir):
                 video_path = os.path.join(class_dir, video_name)
-                frames = [os.path.join(video_path, frame) for frame in sorted(os.listdir(video_path))]
-                if len(frames) >= self.frames_per_sequence:
-                    samples.append((frames, self.class_indices[label]))
+                if os.path.isfile(video_path):
+                    samples.append((video_path, self.class_indices[label]))
         return samples
 
     def __len__(self):
@@ -60,20 +57,35 @@ class VideoFrameGenerator(tf.keras.utils.Sequence):
             np.random.shuffle(self.indexes)
 
     def _data_generation(self, batch_samples):
-        X = np.empty((self.batch_size, self.frames_per_sequence, *self.resize, 3), dtype=np.float32)
-        y = np.empty((self.batch_size), dtype=np.int)
-        for i, (frames, label) in enumerate(batch_samples):
-            for j in range(self.frames_per_sequence):
-                frame = cv2.imread(frames[j])
-                frame = cv2.resize(frame, self.resize)
-                frame = frame / 255.0  # Normalize pixel values
-                X[i, j] = frame
-            y[i] = label
-        return X, tf.keras.utils.to_categorical(y, num_classes=len(self.classes))
+            X = np.empty((self.batch_size, self.frames_per_sequence, *self.resize, 3), dtype=np.float32)
+            y = np.empty((self.batch_size), dtype=np.int32)
+            for i, (video_path, label) in enumerate(batch_samples):
+                cap = cv2.VideoCapture(video_path)
+                frames_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                selected_frames = np.linspace(0, frames_count-1, self.frames_per_sequence, dtype=int)
+                
+                frames = []
+                frame_idx = 0
+                while True:
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    if frame_idx in selected_frames:
+                        frame = cv2.resize(frame, self.resize)
+                        frame = frame / 255.0  # Normalize pixel values
+                        frames.append(frame)
+                    frame_idx += 1
+                    if len(frames) == self.frames_per_sequence:
+                        break
+                cap.release()
+                
+                X[i] = np.array(frames)
+                y[i] = label
+            return X, tf.keras.utils.to_categorical(y, num_classes=len(self.classes))
 
 # Example usage
 train_gen = VideoFrameGenerator(
-    directory='training_data_pi/',
+    directory='training_data_pi/converted_training_data/',
     classes=['griddy', 'naenae', 'whip'],
     batch_size=5,  # Adjust based on your system's capability
     frames_per_sequence=50,  # Number of frames to include in each sequence
